@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_USER=chat_user
+      - MYSQL_PASSWORD=chat_password
+      - MYSQL_DATABASE=chat_db
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=chat_db
+      - MYSQL_USER=chat_user
+      - MYSQL_PASSWORD=chat_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data: 
