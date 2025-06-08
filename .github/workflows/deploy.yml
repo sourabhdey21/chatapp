@@ -21,6 +21,10 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Create remote directory
+        run: |
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'mkdir -p /home/ubuntu/chatapp'
+
       - name: Copy files to EC2
         run: |
           rsync -avz --exclude 'uploads/' --exclude '.git/' -e "ssh -o StrictHostKeyChecking=no" ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/chatapp/
@@ -47,4 +51,4 @@ jobs:
             docker compose down || true && \
             docker compose pull || true && \
             docker compose up --build -d
-          ' 
+          '
