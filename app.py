@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -8,17 +8,23 @@ from datetime import datetime
 from flask import session
 import re
 import base64
+from flask_migrate import Migrate
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}/{os.getenv('MYSQL_DATABASE')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+migrate = Migrate(app, db)
 
 # Database Models
 class User(UserMixin, db.Model):
@@ -36,10 +42,11 @@ class User(UserMixin, db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     room = db.Column(db.String(50), nullable=False)
+    file_url = db.Column(db.String(256), nullable=True)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -135,9 +142,30 @@ def get_messages():
         {
             'user': m.author.username,
             'msg': m.content,
-            'timestamp': m.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': m.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'file_url': m.file_url
         } for m in messages
     ])
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    file = request.files['file']
+    room = request.form.get('room', 'general')
+    if file:
+        filename = f"{current_user.username}_{int(datetime.utcnow().timestamp())}_{file.filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        # Save message with file_url
+        msg = Message(content='', user_id=current_user.id, room=room, file_url=f'/uploads/{filename}')
+        db.session.add(msg)
+        db.session.commit()
+        return jsonify({'success': True, 'file_url': f'/uploads/{filename}', 'user': current_user.username, 'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')})
+    return jsonify({'success': False}), 400
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # WebSocket events
 @socketio.on('join')

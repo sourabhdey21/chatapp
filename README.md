@@ -68,4 +68,23 @@ The application uses the following environment variables (configured in docker-c
 
 ## Contributing
 
-Feel free to submit issues and enhancement requests! 
+Feel free to submit issues and enhancement requests!
+
+## Database Migrations (Flask-Migrate)
+
+If you make changes to your models (e.g., add file uploads), use Flask-Migrate to update your database schema:
+
+1. **Initialize migrations (first time only):**
+   ```sh
+   docker compose exec web flask db init
+   ```
+2. **Generate a migration:**
+   ```sh
+   docker compose exec web flask db migrate -m "Describe your migration here"
+   ```
+3. **Apply the migration:**
+   ```sh
+   docker compose exec web flask db upgrade
+   ```
+
+This will keep your MySQL schema in sync with your models. 

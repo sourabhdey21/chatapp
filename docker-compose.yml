@@ -7,6 +7,7 @@ services:
       - "5000:5000"
     volumes:
       - .:/app
+      - uploads_data:/app/uploads
     depends_on:
       - db
     environment:
@@ -30,4 +31,5 @@ services:
       - mysql_data:/var/lib/mysql
 
 volumes:
-  mysql_data: 
+  mysql_data:
+  uploads_data: 

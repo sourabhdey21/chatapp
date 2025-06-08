@@ -85,11 +85,24 @@
     fileInput.addEventListener('change', function() {
         if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                socket.emit('image', { room: currentRoom, data: e.target.result, name: file.name });
-            };
-            reader.readAsDataURL(file);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('room', currentRoom);
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    renderFileMessage({
+                        user: data.user,
+                        file_url: data.file_url,
+                        name: file.name,
+                        timestamp: data.timestamp
+                    });
+                }
+            });
         }
     });
 
@@ -183,9 +196,16 @@
         const avatar = document.createElement('div');
         avatar.className = `w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${isCurrentUser ? 'bg-blue-700' : 'bg-gray-400'}`;
         avatar.textContent = data.user[0].toUpperCase();
-        let msgHtml = data.msg.replace(/@([\w]+)/g, '<span class="bg-yellow-200 text-yellow-900 font-bold rounded px-1">@$1</span>');
+        let msgHtml = data.msg ? data.msg.replace(/@([\w]+)/g, '<span class="bg-yellow-200 text-yellow-900 font-bold rounded px-1">@$1</span>') : '';
         const content = document.createElement('div');
         content.innerHTML = `<span class="font-semibold">${data.user}</span><br>${msgHtml}`;
+        if (data.file_url) {
+            if (data.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                content.innerHTML += `<img src="${data.file_url}" alt="file" class="max-w-xs rounded mt-2">`;
+            } else {
+                content.innerHTML += `<a href="${data.file_url}" target="_blank" class="text-blue-600 underline mt-2 inline-block">Download file</a>`;
+            }
+        }
         const timestamp = document.createElement('div');
         timestamp.className = 'text-xs text-gray-300 ml-2';
         timestamp.textContent = data.timestamp;
@@ -226,6 +246,9 @@
         messageElement.appendChild(bubble);
         messagesDiv.appendChild(messageElement);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    function renderFileMessage(data) {
+        renderMessage(data);
     }
     // Mention notification
     socket.on('mention_notification', function(data) {
