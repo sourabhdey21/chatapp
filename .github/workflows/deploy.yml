@@ -1,0 +1,50 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add EC2 to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy files to EC2
+        run: |
+          rsync -avz --exclude 'uploads/' --exclude '.git/' -e "ssh -o StrictHostKeyChecking=no" ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/chatapp/
+
+      - name: Install Docker and Docker Compose on EC2
+        run: |
+          ssh ubuntu@${{ secrets.EC2_HOST }} '
+            sudo apt-get update && \
+            sudo apt-get install -y ca-certificates curl gnupg lsb-release && \
+            sudo mkdir -p /etc/apt/keyrings && \
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+            sudo apt-get update && \
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && \
+            sudo usermod -aG docker ubuntu && \
+            newgrp docker || true && \
+            docker --version && docker compose version
+          '
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh ubuntu@${{ secrets.EC2_HOST }} '
+            cd /home/ubuntu/chatapp && \
+            docker compose down || true && \
+            docker compose pull || true && \
+            docker compose up --build -d
+          ' 
